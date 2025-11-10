@@ -30,7 +30,7 @@ const responseSchema = {
     },
     thumbnailIdea: {
         type: Type.STRING,
-        description: 'A creative concept for the video thumbnail based on the video topic and optional image provided.'
+        description: 'A creative concept for the video thumbnail based on the video topic.'
     }
   },
   required: ['title', 'description', 'tags', 'scriptHook', 'thumbnailIdea'],
@@ -45,37 +45,20 @@ export interface CopywritingResult {
     thumbnailIdea: string;
 }
 
-const fileToGenerativePart = async (file: File) => {
-    const base64EncodedDataPromise = new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-      reader.readAsDataURL(file);
-    });
-    return {
-      inlineData: {
-        data: await base64EncodedDataPromise,
-        mimeType: file.type,
-      },
-    };
-};
-
 export const generateCopy = async (
     topic: string,
     niche: string,
-    tone: string,
-    image?: File
+    tone: string
 ): Promise<CopywritingResult> => {
     try {
         const model = 'gemini-2.5-flash';
 
-        const textPrompt = `Generate compelling YouTube video copy for a video about "${topic}". The target niche is "${niche === 'auto-detect' ? 'to be auto-detected' : niche}" and the desired tone is "${tone}". ${image ? 'Base the thumbnail idea on the provided image.' : 'Come up with a thumbnail idea based on the topic.'}`;
+        const textPrompt = `Generate compelling YouTube video copy for a video about "${topic}".
+The target niche is "${niche === 'auto-detect' ? 'to be auto-detected' : niche}" and the desired tone is "${tone}".
+Come up with a creative concept for the video thumbnail based on the topic.
+All generated content (titles, descriptions, tags, hooks, and ideas) MUST BE IN ENGLISH, targeting a global market.`;
         
-        const parts: any[] = [{ text: textPrompt }];
-
-        if (image) {
-            const imagePart = await fileToGenerativePart(image);
-            parts.push(imagePart);
-        }
+        const parts = [{ text: textPrompt }];
 
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: model,

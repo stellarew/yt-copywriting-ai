@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { Button } from './components/Button';
 import { InputField } from './components/InputField';
 import { SelectField } from './components/SelectField';
-import { SparklesIcon, ExclamationTriangleIcon, ImageIcon, ClipboardIcon } from './components/Icons';
+import { SparklesIcon, ExclamationTriangleIcon, SearchIcon, ClipboardIcon } from './components/Icons';
 import { TONE_PRESETS, NICHE_OPTIONS } from './constants';
 import { generateCopy, CopywritingResult } from './services/geminiService';
 
@@ -45,27 +45,20 @@ const ResultSection = ({ title, content }: { title: string; content: string | st
     );
 };
 
-
 const App: React.FC = () => {
     const [topic, setTopic] = useState('');
     const [niche, setNiche] = useState('auto-detect');
     const [tone, setTone] = useState('Conversational (default)');
-    const [image, setImage] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
     
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<CopywritingResult | null>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImage(file);
-            if (imagePreview) {
-                URL.revokeObjectURL(imagePreview);
-            }
-            setImagePreview(URL.createObjectURL(file));
-        }
+    const handleSearchImage = () => {
+        if (!topic.trim()) return;
+        const encodedTopic = encodeURIComponent(topic);
+        const searchUrl = `https://yandex.com/images/search?text=${encodedTopic}`;
+        window.open(searchUrl, '_blank', 'noopener,noreferrer');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -79,7 +72,7 @@ const App: React.FC = () => {
         setResult(null);
 
         try {
-            const generatedResult = await generateCopy(topic, niche, tone, image || undefined);
+            const generatedResult = await generateCopy(topic, niche, tone);
             setResult(generatedResult);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred.');
@@ -111,29 +104,21 @@ const App: React.FC = () => {
                         
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Thumbnail Idea Image (Optional)
+                                Thumbnail Idea
                             </label>
-                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
-                                <div className="space-y-1 text-center">
-                                    {imagePreview ? (
-                                        <img src={imagePreview} alt="Preview" className="mx-auto h-24 w-auto rounded-md object-contain" />
-                                    ) : (
-                                        <ImageIcon className="mx-auto h-12 w-12 text-gray-500" />
-                                    )}
-                                    <div className="flex text-sm text-gray-400 justify-center">
-                                        <label htmlFor="file-upload" className="relative cursor-pointer bg-gray-700 rounded-md font-medium text-purple-400 hover:text-purple-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-purple-500 px-2 py-1">
-                                            <span>Upload a file</span>
-                                            <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" />
-                                        </label>
-                                        <p className="pl-1 self-center hidden sm:block">or drag and drop</p>
-                                    </div>
-                                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
-                                </div>
-                            </div>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={handleSearchImage}
+                                disabled={!topic.trim()}
+                            >
+                                Search for ideas on Yandex Images
+                                <SearchIcon className="w-5 h-5 ml-2" />
+                            </Button>
                         </div>
 
                         <Button type="submit" variant="primary" disabled={loading || !topic.trim()}>
-                            {loading ? 'Generating...' : (
+                            {loading && !result ? 'Generating...' : (
                                 <>
                                     Generate Copy
                                     <SparklesIcon className="w-5 h-5 ml-2" />
@@ -150,7 +135,7 @@ const App: React.FC = () => {
                     </div>
                 )}
                 
-                {loading && (
+                {loading && !result && (
                     <div className="mt-8 text-center">
                         <div role="status" className="flex justify-center items-center space-x-2">
                             <svg aria-hidden="true" className="w-8 h-8 text-gray-600 animate-spin fill-purple-500" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
