@@ -1,28 +1,10 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import { generateContentFromApi } from './services/geminiService';
+import { generateContentFromApi, getSmartSuggestions } from './services/geminiService';
 import { Button, ButtonVariant } from './components/Button';
 import { InputField } from './components/InputField';
 import { SelectField } from './components/SelectField';
 import { TONE_PRESETS, NICHE_OPTIONS } from './constants';
-import { SparklesIcon, ExclamationTriangleIcon, SettingsIcon } from './components/Icons';
-
-interface ButtonConfig {
-  label: string;
-  subLabel?: string;
-  variant: ButtonVariant;
-  action: 'generate' | 'notImplemented';
-}
-
-const BUTTONS: ButtonConfig[] = [
-  { label: 'Generate', subLabel: '(Online AI)', variant: 'primary', action: 'generate' },
-  { label: 'Smart Suggest', subLabel: '(20 topics)', variant: 'secondary', action: 'notImplemented' },
-  { label: 'Random Example', subLabel: '', variant: 'secondary', action: 'notImplemented' },
-  { label: 'Batch CSV Export', subLabel: '', variant: 'secondary', action: 'notImplemented' },
-  { label: 'Save Draft', subLabel: '', variant: 'secondary', action: 'notImplemented' },
-  { label: 'Load Draft', subLabel: '', variant: 'secondary', action: 'notImplemented' },
-  { label: 'Hosted Demo', subLabel: 'Instructions', variant: 'secondary', action: 'notImplemented' },
-];
+import { SparklesIcon, ExclamationTriangleIcon, SettingsIcon, ImageIcon, ClipboardIcon } from './components/Icons';
 
 const App: React.FC = () => {
   const [topic, setTopic] = useState<string>('kasih sayang leopard ke anaknya');
@@ -35,6 +17,12 @@ const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState<boolean>(false);
+  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState<boolean>(false);
+  
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     const storedKey = localStorage.getItem('gemini_api_key');
@@ -50,7 +38,7 @@ const App: React.FC = () => {
     setApiKey(apiKeyInput);
     localStorage.setItem('gemini_api_key', apiKeyInput);
     setIsSettingsOpen(false);
-    setError(null); // Clear previous errors about missing key
+    setError(null);
   };
 
   const handleOpenSettings = () => {
@@ -81,108 +69,160 @@ const App: React.FC = () => {
     }
   }, [topic, tone, apiKey]);
 
+  const handleSmartSuggest = useCallback(async () => {
+    if (!apiKey.trim()) {
+        setError('Please set your Gemini API key in the settings first.');
+        handleOpenSettings();
+        return;
+    }
+    setIsSuggestionsLoading(true);
+    setIsSuggestionsModalOpen(true);
+    setError(null);
+    setSuggestions([]);
+    try {
+        const suggestedTopics = await getSmartSuggestions(topic, niche, apiKey);
+        setSuggestions(suggestedTopics);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching suggestions.');
+        setIsSuggestionsModalOpen(false);
+    } finally {
+        setIsSuggestionsLoading(false);
+    }
+  }, [topic, niche, apiKey]);
+
+  const handleImageSearch = () => {
+    const encodedTopic = encodeURIComponent(topic);
+    const searchUrl = `https://yandex.com/images/search?text=${encodedTopic}`;
+    window.open(searchUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyToClipboard = () => {
+    if (generatedContent) {
+      navigator.clipboard.writeText(generatedContent);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
   const handleNotImplemented = () => {
     alert('This feature is not implemented yet.');
   };
-
-  const getAction = (action: 'generate' | 'notImplemented') => {
-    return action === 'generate' ? handleGenerate : handleNotImplemented;
-  };
   
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center font-sans p-4 text-gray-300">
-      <div className="w-full max-w-3xl bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-700 relative">
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center font-sans p-4 text-gray-300">
+      <div className="w-full max-w-5xl bg-gray-900/50 backdrop-blur-sm p-4 md:p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative">
         <button 
           onClick={handleOpenSettings} 
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
           aria-label="Open Settings"
         >
           <SettingsIcon className="w-6 h-6" />
         </button>
 
-        <InputField
-          id="topic"
-          label="TOPIC (short & specific)"
-          labelDetail="or choose Smart Suggest"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="e.g., A mother leopard's love for her cub"
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-          <SelectField
-            id="niche"
-            label="Niche (auto-detect recommended)"
-            value={niche}
-            onChange={(e) => setNiche(e.target.value)}
-            options={NICHE_OPTIONS}
-          />
-          <SelectField
-            id="tone"
-            label="Tone Preset"
-            value={tone}
-            onChange={(e) => setTone(e.target.value)}
-            options={TONE_PRESETS.map(t => ({ value: t, label: t }))}
-          />
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-white">AI Narrative Generator</h1>
+          <p className="text-gray-400 mt-2">Turn your ideas into compelling stories instantly.</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8">
-          {BUTTONS.map((btn) => (
-            <Button
-              key={btn.label + btn.subLabel}
-              variant={btn.variant}
-              onClick={getAction(btn.action)}
-              disabled={isLoading && btn.action === 'generate'}
-            >
-              <span className="font-semibold">{btn.label}</span>
-              {btn.subLabel && <span className="block text-xs font-normal">{btn.subLabel}</span>}
-            </Button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="w-full max-w-3xl mt-6">
-        {isLoading && (
-          <div className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700 flex flex-col items-center justify-center text-center">
-            <SparklesIcon className="w-10 h-10 text-blue-400 animate-pulse" />
-            <p className="mt-4 text-gray-300 font-semibold">Generating content...</p>
-            <p className="text-gray-400 text-sm">Please wait a moment.</p>
+        <div className="space-y-6">
+          <InputField
+            id="topic"
+            label="TOPIC (short & specific)"
+            labelDetail="(e.g. 'A cat who learns to fly')"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Enter your topic here..."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SelectField
+              id="niche"
+              label="NICHE"
+              options={NICHE_OPTIONS}
+              value={niche}
+              onChange={(e) => setNiche(e.target.value)}
+            />
+            <SelectField
+              id="tone"
+              label="TONE"
+              options={TONE_PRESETS.map(t => ({ value: t, label: t }))}
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+            />
           </div>
-        )}
+        </div>
+
+        <div className="mt-8">
+          <Button
+            variant="primary"
+            onClick={handleGenerate}
+            disabled={isLoading || isSuggestionsLoading}
+            className="w-full text-lg py-4"
+          >
+            <SparklesIcon className="w-6 h-6 mr-2" />
+            <span className="font-semibold">Generate Narrative</span>
+          </Button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Button onClick={handleSmartSuggest} disabled={isLoading || isSuggestionsLoading}>Smart Suggest</Button>
+          <Button onClick={handleNotImplemented}>Random Example</Button>
+          <Button onClick={handleNotImplemented}>Batch Export</Button>
+          <Button onClick={handleNotImplemented}>Save Draft</Button>
+          <Button onClick={handleNotImplemented}>Load Draft</Button>
+          <Button onClick={handleNotImplemented}>Hosted Demo</Button>
+        </div>
+
         {error && (
-          <div className="bg-red-900/50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-md">
-            <div className="flex">
-              <div className="py-1">
-                <ExclamationTriangleIcon className="h-6 w-6 text-red-400 mr-3" />
-              </div>
-              <div>
-                <p className="font-bold text-red-200">Error</p>
-                <p className="text-sm text-red-300">{error}</p>
-              </div>
-            </div>
+          <div className="mt-6 flex items-center gap-3 text-red-400 bg-red-900/30 p-4 rounded-lg border border-red-700/50">
+            <ExclamationTriangleIcon className="w-6 h-6 flex-shrink-0" />
+            <p className="text-sm font-medium">{error}</p>
           </div>
         )}
-        {generatedContent && !isLoading && (
-          <div className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
-            <h3 className="text-lg font-bold text-gray-100 mb-4">Generated Content:</h3>
-            <div className="prose prose-invert max-w-none text-gray-300 whitespace-pre-wrap">{generatedContent}</div>
-          </div>
-        )}
-      </div>
 
-      <footer className="text-center mt-8 text-xs text-gray-500">
-        <p>Shorts Generator v11 — Pro Edition • Save this HTML and open in browser. For Online AI, run via local server for best results.</p>
-      </footer>
+        {isLoading && (
+          <div className="mt-6 flex items-center justify-center gap-3 text-blue-400 bg-blue-900/20 p-4 rounded-lg">
+            <SparklesIcon className="w-6 h-6 animate-spin" />
+            <p className="font-semibold">Generating your narrative... please wait.</p>
+          </div>
+        )}
+        
+        {generatedContent && !isLoading && (
+          <div className="mt-8 space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold text-white">Generated Narrative</h3>
+                <button
+                    onClick={handleCopyToClipboard}
+                    className="flex items-center gap-2 text-sm px-3 py-1.5 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors"
+                >
+                    <ClipboardIcon className="w-4 h-4" />
+                    {isCopied ? 'Copied!' : 'Copy'}
+                </button>
+            </div>
+            <div className="bg-gray-800/50 p-4 rounded-lg text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto border border-gray-700">
+              {generatedContent}
+            </div>
+            <button
+              onClick={handleImageSearch}
+              className="mt-2 flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+            >
+              <ImageIcon className="w-5 h-5" />
+              Search for relevant images on Yandex
+            </button>
+          </div>
+        )}
+
+      </div>
 
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" aria-modal="true" role="dialog">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
           <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
-            <h2 className="text-xl font-bold text-white mb-2">Settings</h2>
-            <p className="text-gray-400 mb-4 text-sm">
-              Please enter your Gemini API key. Your key is stored securely in your browser's local storage.
+            <h2 className="text-xl font-bold mb-4 text-white">Settings</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Please enter your Gemini API key. Your key is stored locally in your browser and is never sent to our servers.
             </p>
             <InputField
-              id="apiKey"
+              id="api-key"
               label="Gemini API Key"
               type="password"
               value={apiKeyInput}
@@ -196,6 +236,32 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {isSuggestionsModalOpen && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
+              <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-white">Smart Suggestions for "{topic}"</h2>
+                  {isSuggestionsLoading ? (
+                      <div className="flex items-center justify-center gap-3 text-gray-400 h-60">
+                          <SparklesIcon className="w-6 h-6 animate-spin" />
+                          <p className="font-semibold">Finding creative ideas...</p>
+                      </div>
+                  ) : (
+                      <>
+                          <ul className="list-disc list-inside space-y-2 max-h-80 overflow-y-auto text-gray-300 bg-gray-900/50 p-4 rounded-md border border-gray-700">
+                              {suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                          </ul>
+                          <div className="mt-6 flex justify-end">
+                              <Button variant="primary" onClick={() => setIsSuggestionsModalOpen(false)}>
+                                  Close
+                              </Button>
+                          </div>
+                      </>
+                  )}
+              </div>
+          </div>
+      )}
+
     </div>
   );
 };

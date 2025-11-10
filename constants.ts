@@ -1,4 +1,3 @@
-
 export const TONE_PRESETS: string[] = [
     "Conversational (default)",
     "Professional",
@@ -6,12 +5,29 @@ export const TONE_PRESETS: string[] = [
     "Inspirational",
     "Educational",
     "Storytelling",
+    "Dramatic",
+    "Suspenseful",
+    "Heartwarming",
 ];
 
 export const NICHE_OPTIONS: { value: string; label: string }[] = [
     { value: "auto-detect", label: "Auto-detect" },
-    { value: "tech", label: "Technology" },
+    { value: "film-animation", label: "Film & Animation" },
+    { value: "autos-vehicles", label: "Autos & Vehicles" },
+    { value: "music", label: "Music" },
+    { value: "pets-animals", label: "Pets & Animals" },
+    { value: "sports", label: "Sports" },
+    { value: "travel-events", label: "Travel & Events" },
+    { value: "gaming", label: "Gaming" },
+    { value: "people-blogs", label: "People & Blogs" },
+    { value: "comedy", label: "Comedy" },
+    { value: "entertainment", label: "Entertainment" },
+    { value: "news-politics", label: "News & Politics" },
+    { value: "howto-style", label: "How-to & Style" },
+    { value: "education", label: "Education" },
+    { value: "science-technology", label: "Science & Technology" },
+    { value: "nonprofits-activism", label: "Nonprofits & Activism" },
     { value: "finance", label: "Finance" },
-    { value: "health", label: "Health & Wellness" },
+    { value: "health-wellness", label: "Health & Wellness" },
     { value: "lifestyle", label: "Lifestyle" },
 ];
