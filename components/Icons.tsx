@@ -34,3 +34,20 @@ export const ExclamationTriangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = 
         />
     </svg>
 );
+
+export const SettingsIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    fill="none" 
+    viewBox="0 0 24 24" 
+    strokeWidth={1.5} 
+    stroke="currentColor" 
+    {...props}
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      d="M9.594 3.94c.09-.542.56-1.007 1.11-.994a18.356 18.356 0 013.332 0c.55.014 1.02.452 1.11.994.09.542-.014 1.134-.336 1.631L14.63 7.42a6.74 6.74 0 010 9.16l1.043 1.043c.322.497.426 1.089.336 1.631-.09.542-.56 1.007-1.11.994a18.356 18.356 0 01-3.332 0c-.55-.014-1.02-.452-1.11-.994-.09-.542.014-1.134.336-1.631L9.37 16.58a6.74 6.74 0 010-9.16L8.327 6.38c-.322-.497-.426-1.089-.336-1.631zM12 15a3 3 0 100-6 3 3 0 000 6z" 
+    />
+  </svg>
+);

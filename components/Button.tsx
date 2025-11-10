@@ -14,11 +14,11 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'h-full w-full rounded-lg p-3 text-sm flex flex-col items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed';
+    'h-full w-full rounded-lg p-3 text-sm flex flex-col items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variantClasses = {
-    primary: 'bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-500 shadow',
-    secondary: 'bg-white text-blue-700 border border-blue-400 hover:bg-blue-50 focus:ring-blue-500 shadow-sm',
+    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow',
+    secondary: 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 focus:ring-blue-500 shadow-sm',
   };
 
   return (

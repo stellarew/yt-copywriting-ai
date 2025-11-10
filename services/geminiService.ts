@@ -1,16 +1,13 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-export const generateContentFromApi = async (topic: string, tone: string): Promise<string> => {
-    // This check is for the browser environment where process.env might not be defined
-    // or the API key is not set. The environment is expected to provide the key.
-    if (!process.env.API_KEY) {
-        console.error("API_KEY is not set in environment variables.");
-        throw new Error("API key is missing. Please configure your environment.");
+export const generateContentFromApi = async (topic: string, tone: string, apiKey: string): Promise<string> => {
+    if (!apiKey) {
+        throw new Error("API key is missing. Please set it in the settings.");
     }
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey: apiKey });
 
         const model = 'gemini-2.5-flash';
         
@@ -18,6 +15,7 @@ export const generateContentFromApi = async (topic: string, tone: string): Promi
             You are an expert content creator for social media shorts.
             Your task is to generate a short, engaging script based on the following details.
             The script should be concise and suitable for a short video format.
+            Regardless of the language of the topic, the generated script must be in English.
 
             Topic: "${topic}"
             Tone: "${tone.replace(' (default)', '').trim()}"
@@ -38,6 +36,10 @@ export const generateContentFromApi = async (topic: string, tone: string): Promi
     } catch (error) {
         console.error("Error calling Gemini API:", error);
         if (error instanceof Error) {
+            // Check for common API key-related errors
+            if (error.message.includes('API key not valid')) {
+                throw new Error('The provided API key is not valid. Please check it in the settings.');
+            }
             throw new Error(`Failed to generate content: ${error.message}`);
         }
         throw new Error("An unexpected error occurred while generating content.");
