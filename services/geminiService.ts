@@ -1,89 +1,101 @@
-import { GoogleGenAI } from "@google/genai";
+/**
+ * This file contains the service for interacting with the Google Gemini API.
+ * It provides a function to generate copywriting content for YouTube videos.
+ */
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
-export const generateContentFromApi = async (topic: string, tone: string, apiKey: string): Promise<string> => {
-    if (!apiKey) {
-        throw new Error("API key is missing. Please set it in the settings.");
+// As per guidelines, API key must be from process.env.API_KEY
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Define the expected JSON structure from the Gemini API
+const responseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    title: {
+      type: Type.STRING,
+      description: 'A catchy and SEO-friendly YouTube video title, under 70 characters.',
+    },
+    description: {
+      type: Type.STRING,
+      description: 'A detailed and engaging YouTube video description, around 200-300 words, including hashtags and emojis.',
+    },
+    tags: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: 'A list of 10-15 relevant keywords and tags for the video.',
+    },
+    scriptHook: {
+      type: Type.STRING,
+      description: 'An engaging opening hook for the video script to capture viewer attention in the first 15 seconds.',
+    },
+    thumbnailIdea: {
+        type: Type.STRING,
+        description: 'A creative concept for the video thumbnail based on the video topic and optional image provided.'
     }
-
-    try {
-        const ai = new GoogleGenAI({ apiKey: apiKey });
-
-        const model = 'gemini-2.5-flash';
-        
-        const prompt = `
-            You are an expert storyteller.
-            Your task is to write a compelling and engaging narrative based on the following topic and tone.
-            The output should be a pure story, without any script formatting, dialogue tags, or scene directions.
-            The story should be suitable for a short video, focusing on vivid descriptions and a clear plot.
-            Regardless of the language of the topic, the generated story must be in English.
-
-            Topic: "${topic}"
-            Tone: "${tone.replace(' (default)', '').trim()}"
-
-            Write the story now.
-        `;
-
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: prompt,
-        });
-
-        if (response.text) {
-            return response.text;
-        } else {
-            throw new Error("Received an empty response from the AI.");
-        }
-    } catch (error) {
-        console.error("Error calling Gemini API:", error);
-        if (error instanceof Error) {
-            // Check for common API key-related errors
-            if (error.message.includes('API key not valid')) {
-                throw new Error('The provided API key is not valid. Please check it in the settings.');
-            }
-            throw new Error(`Failed to generate content: ${error.message}`);
-        }
-        throw new Error("An unexpected error occurred while generating content.");
-    }
+  },
+  required: ['title', 'description', 'tags', 'scriptHook', 'thumbnailIdea'],
 };
 
-export const getSmartSuggestions = async (topic: string, niche: string, apiKey: string): Promise<string[]> => {
-    if (!apiKey) {
-        throw new Error("API key is missing. Please set it in the settings.");
-    }
 
+export interface CopywritingResult {
+    title: string;
+    description: string;
+    tags: string[];
+    scriptHook: string;
+    thumbnailIdea: string;
+}
+
+const fileToGenerativePart = async (file: File) => {
+    const base64EncodedDataPromise = new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    return {
+      inlineData: {
+        data: await base64EncodedDataPromise,
+        mimeType: file.type,
+      },
+    };
+};
+
+export const generateCopy = async (
+    topic: string,
+    niche: string,
+    tone: string,
+    image?: File
+): Promise<CopywritingResult> => {
     try {
-        const ai = new GoogleGenAI({ apiKey: apiKey });
         const model = 'gemini-2.5-flash';
 
-        const prompt = `
-            Generate a list of 20 engaging, specific, and creative topic ideas for social media shorts.
-            The topics should be related to the central theme: "${topic}" within the "${niche}" niche.
-            Return the list as a simple, plain text, numbered list (e.g., "1. Topic one", "2. Topic two").
-            Do not add any preamble, introduction, or conclusion. Just the list.
-        `;
+        const textPrompt = `Generate compelling YouTube video copy for a video about "${topic}". The target niche is "${niche === 'auto-detect' ? 'to be auto-detected' : niche}" and the desired tone is "${tone}". ${image ? 'Base the thumbnail idea on the provided image.' : 'Come up with a thumbnail idea based on the topic.'}`;
+        
+        const parts: any[] = [{ text: textPrompt }];
 
-        const response = await ai.models.generateContent({
+        if (image) {
+            const imagePart = await fileToGenerativePart(image);
+            parts.push(imagePart);
+        }
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: { parts: parts },
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: responseSchema,
+            },
         });
 
-        if (response.text) {
-            // Split by new line, remove the numbering, and filter out empty lines
-            return response.text
-                .split('\n')
-                .map(line => line.replace(/^\d+\.\s*/, '').trim())
-                .filter(line => line.length > 0);
-        } else {
-            throw new Error("Received an empty response from the AI for suggestions.");
-        }
+        const jsonText = response.text.trim();
+        const result: CopywritingResult = JSON.parse(jsonText);
+        
+        return result;
+
     } catch (error) {
-        console.error("Error calling Gemini API for suggestions:", error);
+        console.error("Error generating copywriting:", error);
         if (error instanceof Error) {
-            if (error.message.includes('API key not valid')) {
-                throw new Error('The provided API key is not valid. Please check it in the settings.');
-            }
-            throw new Error(`Failed to get suggestions: ${error.message}`);
+            throw new Error(`Failed to generate content: ${error.message}`);
         }
-        throw new Error("An unexpected error occurred while getting suggestions.");
+        throw new Error("An unknown error occurred while generating content.");
     }
 };

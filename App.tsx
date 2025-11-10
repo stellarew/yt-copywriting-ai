@@ -1,269 +1,180 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { generateContentFromApi, getSmartSuggestions } from './services/geminiService';
-import { Button, ButtonVariant } from './components/Button';
+/**
+ * This file contains the main application component.
+ * It provides the UI for generating YouTube copywriting content using the Gemini API.
+ */
+import React, { useState } from 'react';
+import { Button } from './components/Button';
 import { InputField } from './components/InputField';
 import { SelectField } from './components/SelectField';
+import { SparklesIcon, ExclamationTriangleIcon, ImageIcon, ClipboardIcon } from './components/Icons';
 import { TONE_PRESETS, NICHE_OPTIONS } from './constants';
-import { SparklesIcon, ExclamationTriangleIcon, SettingsIcon, ImageIcon, ClipboardIcon } from './components/Icons';
+import { generateCopy, CopywritingResult } from './services/geminiService';
+
+const ResultSection = ({ title, content }: { title: string; content: string | string[] }) => {
+    const [copied, setCopied] = useState(false);
+    const textToCopy = Array.isArray(content) ? content.join(', ') : content;
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+        });
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-semibold text-purple-300">{title}</h3>
+                <div className="relative">
+                    <button 
+                      onClick={handleCopy} 
+                      className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      aria-label={`Copy ${title}`}
+                    >
+                        <ClipboardIcon className="w-5 h-5" />
+                    </button>
+                    {copied && <span className="absolute -top-7 right-0 text-xs bg-gray-900 text-green-400 px-2 py-1 rounded shadow-lg">Copied!</span>}
+                </div>
+            </div>
+            <div className="bg-gray-900/70 p-4 rounded-md text-gray-300 whitespace-pre-wrap font-mono text-sm break-words">
+                {Array.isArray(content) ? content.join(', ') : content}
+            </div>
+        </div>
+    );
+};
+
 
 const App: React.FC = () => {
-  const [topic, setTopic] = useState<string>('kasih sayang leopard ke anaknya');
-  const [niche, setNiche] = useState<string>(NICHE_OPTIONS[0].value);
-  const [tone, setTone] = useState<string>(TONE_PRESETS[0]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [generatedContent, setGeneratedContent] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
+    const [topic, setTopic] = useState('');
+    const [niche, setNiche] = useState('auto-detect');
+    const [tone, setTone] = useState('Conversational (default)');
+    const [image, setImage] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [result, setResult] = useState<CopywritingResult | null>(null);
 
-  const [apiKey, setApiKey] = useState<string>('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [apiKeyInput, setApiKeyInput] = useState<string>('');
-  
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState<boolean>(false);
-  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState<boolean>(false);
-  
-  const [isCopied, setIsCopied] = useState(false);
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setImage(file);
+            if (imagePreview) {
+                URL.revokeObjectURL(imagePreview);
+            }
+            setImagePreview(URL.createObjectURL(file));
+        }
+    };
 
-  useEffect(() => {
-    const storedKey = localStorage.getItem('gemini_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
-      setApiKeyInput(storedKey);
-    } else {
-      setIsSettingsOpen(true);
-    }
-  }, []);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!topic.trim()) {
+            setError('Please enter a video topic.');
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        setResult(null);
 
-  const handleSaveApiKey = () => {
-    setApiKey(apiKeyInput);
-    localStorage.setItem('gemini_api_key', apiKeyInput);
-    setIsSettingsOpen(false);
-    setError(null);
-  };
+        try {
+            const generatedResult = await generateCopy(topic, niche, tone, image || undefined);
+            setResult(generatedResult);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    return (
+        <div className="bg-gray-900 min-h-screen text-white p-4 sm:p-6 lg:p-8 font-sans">
+            <main className="max-w-4xl mx-auto">
+                <header className="text-center mb-8">
+                    <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">
+                        YT Copywriting AI
+                    </h1>
+                    <p className="text-gray-400">
+                        Generate catchy titles, descriptions, and more for your YouTube videos.
+                    </p>
+                </header>
 
-  const handleOpenSettings = () => {
-    setApiKeyInput(apiKey);
-    setIsSettingsOpen(true);
-  };
+                <div className="bg-gray-800/50 p-6 rounded-xl shadow-2xl border border-gray-700">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <InputField id="topic" label="Video Topic" placeholder="e.g., How to make a sourdough starter" value={topic} onChange={(e) => setTopic(e.target.value)} required />
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <SelectField id="niche" label="Video Niche" value={niche} onChange={(e) => setNiche(e.target.value)} options={NICHE_OPTIONS} />
+                           <SelectField id="tone" label="Desired Tone" value={tone} onChange={(e) => setTone(e.target.value)} options={TONE_PRESETS.map(t => ({ value: t, label: t }))} />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                Thumbnail Idea Image (Optional)
+                            </label>
+                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
+                                <div className="space-y-1 text-center">
+                                    {imagePreview ? (
+                                        <img src={imagePreview} alt="Preview" className="mx-auto h-24 w-auto rounded-md object-contain" />
+                                    ) : (
+                                        <ImageIcon className="mx-auto h-12 w-12 text-gray-500" />
+                                    )}
+                                    <div className="flex text-sm text-gray-400 justify-center">
+                                        <label htmlFor="file-upload" className="relative cursor-pointer bg-gray-700 rounded-md font-medium text-purple-400 hover:text-purple-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-900 focus-within:ring-purple-500 px-2 py-1">
+                                            <span>Upload a file</span>
+                                            <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" />
+                                        </label>
+                                        <p className="pl-1 self-center hidden sm:block">or drag and drop</p>
+                                    </div>
+                                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                                </div>
+                            </div>
+                        </div>
 
-  const handleGenerate = useCallback(async () => {
-    if (!apiKey.trim()) {
-      setError('Please set your Gemini API key in the settings before generating content.');
-      handleOpenSettings();
-      return;
-    }
-    if (!topic.trim()) {
-      setError('Topic cannot be empty.');
-      return;
-    }
-    setIsLoading(true);
-    setGeneratedContent('');
-    setError(null);
-    try {
-      const content = await generateContentFromApi(topic, tone, apiKey);
-      setGeneratedContent(content);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [topic, tone, apiKey]);
+                        <Button type="submit" variant="primary" disabled={loading || !topic.trim()}>
+                            {loading ? 'Generating...' : (
+                                <>
+                                    Generate Copy
+                                    <SparklesIcon className="w-5 h-5 ml-2" />
+                                </>
+                            )}
+                        </Button>
+                    </form>
+                </div>
 
-  const handleSmartSuggest = useCallback(async () => {
-    if (!apiKey.trim()) {
-        setError('Please set your Gemini API key in the settings first.');
-        handleOpenSettings();
-        return;
-    }
-    setIsSuggestionsLoading(true);
-    setIsSuggestionsModalOpen(true);
-    setError(null);
-    setSuggestions([]);
-    try {
-        const suggestedTopics = await getSmartSuggestions(topic, niche, apiKey);
-        setSuggestions(suggestedTopics);
-    } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching suggestions.');
-        setIsSuggestionsModalOpen(false);
-    } finally {
-        setIsSuggestionsLoading(false);
-    }
-  }, [topic, niche, apiKey]);
+                {error && (
+                    <div className="mt-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg flex items-center" role="alert">
+                        <ExclamationTriangleIcon className="w-5 h-5 mr-3" />
+                        <span>{error}</span>
+                    </div>
+                )}
+                
+                {loading && (
+                    <div className="mt-8 text-center">
+                        <div role="status" className="flex justify-center items-center space-x-2">
+                            <svg aria-hidden="true" className="w-8 h-8 text-gray-600 animate-spin fill-purple-500" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+                                <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
+                            </svg>
+                            <span className="text-lg text-gray-400">Generating ideas... this may take a moment.</span>
+                        </div>
+                    </div>
+                )}
 
-  const handleImageSearch = () => {
-    const encodedTopic = encodeURIComponent(topic);
-    const searchUrl = `https://yandex.com/images/search?text=${encodedTopic}`;
-    window.open(searchUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleCopyToClipboard = () => {
-    if (generatedContent) {
-      navigator.clipboard.writeText(generatedContent);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    }
-  };
-
-  const handleNotImplemented = () => {
-    alert('This feature is not implemented yet.');
-  };
-  
-  return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center font-sans p-4 text-gray-300">
-      <div className="w-full max-w-5xl bg-gray-900/50 backdrop-blur-sm p-4 md:p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative">
-        <button 
-          onClick={handleOpenSettings} 
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
-          aria-label="Open Settings"
-        >
-          <SettingsIcon className="w-6 h-6" />
-        </button>
-
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-white">AI Narrative Generator</h1>
-          <p className="text-gray-400 mt-2">Turn your ideas into compelling stories instantly.</p>
+                {result && !loading && (
+                    <div className="mt-8 bg-gray-800/50 p-6 rounded-xl shadow-lg border border-gray-700 space-y-6">
+                        <h2 className="text-2xl font-bold text-center text-gray-200">Generated Copy</h2>
+                        <ResultSection title="Video Title" content={result.title} />
+                        <ResultSection title="Thumbnail Idea" content={result.thumbnailIdea} />
+                        <ResultSection title="Script Hook" content={result.scriptHook} />
+                        <ResultSection title="Description" content={result.description} />
+                        <ResultSection title="Tags" content={result.tags} />
+                    </div>
+                )}
+            </main>
         </div>
-
-        <div className="space-y-6">
-          <InputField
-            id="topic"
-            label="TOPIC (short & specific)"
-            labelDetail="(e.g. 'A cat who learns to fly')"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="Enter your topic here..."
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SelectField
-              id="niche"
-              label="NICHE"
-              options={NICHE_OPTIONS}
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-            />
-            <SelectField
-              id="tone"
-              label="TONE"
-              options={TONE_PRESETS.map(t => ({ value: t, label: t }))}
-              value={tone}
-              onChange={(e) => setTone(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <Button
-            variant="primary"
-            onClick={handleGenerate}
-            disabled={isLoading || isSuggestionsLoading}
-            className="w-full text-lg py-4"
-          >
-            <SparklesIcon className="w-6 h-6 mr-2" />
-            <span className="font-semibold">Generate Narrative</span>
-          </Button>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Button onClick={handleSmartSuggest} disabled={isLoading || isSuggestionsLoading}>Smart Suggest</Button>
-          <Button onClick={handleNotImplemented}>Random Example</Button>
-          <Button onClick={handleNotImplemented}>Batch Export</Button>
-          <Button onClick={handleNotImplemented}>Save Draft</Button>
-          <Button onClick={handleNotImplemented}>Load Draft</Button>
-          <Button onClick={handleNotImplemented}>Hosted Demo</Button>
-        </div>
-
-        {error && (
-          <div className="mt-6 flex items-center gap-3 text-red-400 bg-red-900/30 p-4 rounded-lg border border-red-700/50">
-            <ExclamationTriangleIcon className="w-6 h-6 flex-shrink-0" />
-            <p className="text-sm font-medium">{error}</p>
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="mt-6 flex items-center justify-center gap-3 text-blue-400 bg-blue-900/20 p-4 rounded-lg">
-            <SparklesIcon className="w-6 h-6 animate-spin" />
-            <p className="font-semibold">Generating your narrative... please wait.</p>
-          </div>
-        )}
-        
-        {generatedContent && !isLoading && (
-          <div className="mt-8 space-y-4">
-            <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-white">Generated Narrative</h3>
-                <button
-                    onClick={handleCopyToClipboard}
-                    className="flex items-center gap-2 text-sm px-3 py-1.5 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors"
-                >
-                    <ClipboardIcon className="w-4 h-4" />
-                    {isCopied ? 'Copied!' : 'Copy'}
-                </button>
-            </div>
-            <div className="bg-gray-800/50 p-4 rounded-lg text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto border border-gray-700">
-              {generatedContent}
-            </div>
-            <button
-              onClick={handleImageSearch}
-              className="mt-2 flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
-            >
-              <ImageIcon className="w-5 h-5" />
-              Search for relevant images on Yandex
-            </button>
-          </div>
-        )}
-
-      </div>
-
-      {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
-          <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
-            <h2 className="text-xl font-bold mb-4 text-white">Settings</h2>
-            <p className="text-sm text-gray-400 mb-4">
-              Please enter your Gemini API key. Your key is stored locally in your browser and is never sent to our servers.
-            </p>
-            <InputField
-              id="api-key"
-              label="Gemini API Key"
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="Enter your API key"
-            />
-            <div className="mt-6 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={handleSaveApiKey}>Save Key</Button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {isSuggestionsModalOpen && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
-              <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4 text-white">Smart Suggestions for "{topic}"</h2>
-                  {isSuggestionsLoading ? (
-                      <div className="flex items-center justify-center gap-3 text-gray-400 h-60">
-                          <SparklesIcon className="w-6 h-6 animate-spin" />
-                          <p className="font-semibold">Finding creative ideas...</p>
-                      </div>
-                  ) : (
-                      <>
-                          <ul className="list-disc list-inside space-y-2 max-h-80 overflow-y-auto text-gray-300 bg-gray-900/50 p-4 rounded-md border border-gray-700">
-                              {suggestions.map((s, i) => <li key={i}>{s}</li>)}
-                          </ul>
-                          <div className="mt-6 flex justify-end">
-                              <Button variant="primary" onClick={() => setIsSuggestionsModalOpen(false)}>
-                                  Close
-                              </Button>
-                          </div>
-                      </>
-                  )}
-              </div>
-          </div>
-      )}
-
-    </div>
-  );
-};
+    );
+}
 
 export default App;
