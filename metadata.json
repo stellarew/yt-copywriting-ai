@@ -1,0 +1,5 @@
+{
+  "name": "AI Content Generator",
+  "description": "A web tool to generate content based on topics and tones using the Gemini AI. This application allows users to input a topic, select a tone, and generate text content via an online AI, mirroring the provided UI.",
+  "requestFramePermissions": []
+}
